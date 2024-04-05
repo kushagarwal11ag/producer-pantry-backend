@@ -27,13 +27,28 @@ const userSchema = new Schema(
 			required: true,
 		},
 		avatar: {
-			type: String,
+			id: {
+				type: String
+			},
+			url: {
+				type: String
+			},
 		},
 		govId: {
-			type: String,
+			id: {
+				type: String
+			},
+			url: {
+				type: String
+			},
 		},
 		certification: {
-			type: String,
+			id: {
+				type: String
+			},
+			url: {
+				type: String
+			},
 		},
 		address: {
 			type: String,

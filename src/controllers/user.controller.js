@@ -3,7 +3,10 @@ import jwt from "jsonwebtoken";
 
 import { User } from "../models/user.model.js";
 import { validateUser } from "../utils/validators.js";
-import uploadOnCloudinary from "../utils/cloudinary.js";
+import {
+	uploadOnCloudinary,
+	deleteFromCloudinary,
+} from "../utils/cloudinary.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
@@ -36,7 +39,7 @@ const handleFileUpload = async (filePath, fileType) => {
 		throw new ApiError(500, `Failed to upload ${fileType}`);
 	}
 
-	return uploadedFile?.url;
+	return { id: uploadedFile?.public_id, url: uploadedFile?.url };
 };
 
 const registerUser = asyncHandler(async (req, res) => {
@@ -168,8 +171,6 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 const updateAccountDetails = asyncHandler(async (req, res) => {
 	const { name, role, address, phone } = req.body;
 
-	const tempUser = {};
-
 	if (name) {
 		const { error } = validateUser({
 			name,
@@ -180,20 +181,17 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 				`Validation error: ${error.details[0].message}`
 			);
 		}
-
-		tempUser.name = name;
 	}
 
 	if (role) {
 		if (!(role === "farmer" || role === "retailer")) {
 			throw new ApiError(400, "Invalid role selected.");
 		}
-		tempUser.role = role;
 	}
 
-	if (address) {
-		tempUser.address = address;
-	}
+	// if (address) {
+	// 	tempUser.address = address;
+	// }
 
 	if (phone) {
 		const { error } = validateUser({
@@ -205,22 +203,20 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 				`Validation error: ${error.details[0].message}`
 			);
 		}
-
-		tempUser.phone = phone;
 	}
 
-	if (isEmpty(tempUser)) {
-		throw new ApiError(
-			400,
-			"Fields are required for updating user details"
-		);
+	if (!(name || role || address || phone)) {
+		throw new ApiError(400, "No field requested for update");
 	}
 
 	const updatedUser = await User.findByIdAndUpdate(
 		req.user?._id,
 		{
 			$set: {
-				...tempUser,
+				name,
+				role,
+				address,
+				phone,
 			},
 		},
 		{ new: true }
@@ -246,9 +242,15 @@ const updateAccountFiles = asyncHandler(async (req, res) => {
 		throw new ApiError(400, "Upload files to proceed");
 	}
 
-	const avatarUrl = handleFileUpload(avatarLocalPath, "avatar");
-	const govIdUrl = handleFileUpload(govIdLocalPath, "govId");
-	const certificationUrl = handleFileUpload(
+	const { id: avatarId, url: avatarUrl } = handleFileUpload(
+		avatarLocalPath,
+		"avatar"
+	);
+	const { id: govIdentity, url: govIdUrl } = handleFileUpload(
+		govIdLocalPath,
+		"govId"
+	);
+	const { id: certificationId, url: certificationUrl } = handleFileUpload(
 		certificationLocalPath,
 		"certification"
 	);
@@ -257,9 +259,18 @@ const updateAccountFiles = asyncHandler(async (req, res) => {
 		req.user?._id,
 		{
 			$set: {
-				avatar: avatarUrl,
-				govId: govIdUrl,
-				certification: certificationUrl,
+				avatar: {
+					id: avatarId,
+					url: avatarUrl,
+				},
+				govId: {
+					id: govIdentity,
+					url: govIdUrl,
+				},
+				certification: {
+					id: certificationId,
+					url: certificationUrl,
+				},
 			},
 		},
 		{ new: true }
@@ -284,8 +295,6 @@ const deleteAvatar = asyncHandler(async (req, res) => {
 		},
 		{ new: true }
 	);
-
-	//TODO: after deleting avatar, delete old image - assignment
 
 	return res
 		.status(200)

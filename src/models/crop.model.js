@@ -11,12 +11,18 @@ const cropSchema = new Schema(
 			type: String,
 			required: true,
 		},
-		category: {
-			type: String,
-		},
+		// category: {
+		// 	type: String,
+		// },
 		image: {
-			type: String,
-			required: true,
+			id: {
+				type: String,
+				required: true,
+			},
+			url: {
+				type: String,
+				required: true,
+			},
 		},
 		price: {
 			type: Number,
