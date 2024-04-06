@@ -242,6 +242,8 @@ const updateAccountFiles = asyncHandler(async (req, res) => {
 		throw new ApiError(400, "Upload files to proceed");
 	}
 
+	const user = await User.findById(req.user?._id);
+
 	const { id: avatarId, url: avatarUrl } = handleFileUpload(
 		avatarLocalPath,
 		"avatar"
@@ -276,7 +278,26 @@ const updateAccountFiles = asyncHandler(async (req, res) => {
 		{ new: true }
 	).select("-password -refreshToken");
 
-	//TODO: after updating new image, delete old image - assignment
+	if (avatarId && user?.avatar?.id) {
+		const deletedAvatar = await deleteFromCloudinary(user?.avatar?.id);
+		if (deletedAvatar) {
+			throw new ApiError(500, deletedAvatar);
+		}
+	}
+	if (govIdentity && user?.govId?.id) {
+		const deletedGovId = await deleteFromCloudinary(user?.govId?.id);
+		if (deletedGovId) {
+			throw new ApiError(500, deletedGovId);
+		}
+	}
+	if (certificationId && user?.certification?.id) {
+		const deletedCertification = await deleteFromCloudinary(
+			user?.certification?.id
+		);
+		if (deletedCertification) {
+			throw new ApiError(500, deletedCertification);
+		}
+	}
 
 	return res
 		.status(200)
@@ -286,7 +307,13 @@ const updateAccountFiles = asyncHandler(async (req, res) => {
 });
 
 const deleteAvatar = asyncHandler(async (req, res) => {
-	const user = await User.findByIdAndUpdate(
+	const user = await User.findById(req.user?._id);
+
+	if (!user?.avatar?.id) {
+		throw new ApiError(400, "Avatar does not exist. Nothing to delete");
+	}
+
+	const deletedUser = await User.findByIdAndUpdate(
 		req.user?._id,
 		{
 			$unset: {
@@ -296,9 +323,22 @@ const deleteAvatar = asyncHandler(async (req, res) => {
 		{ new: true }
 	);
 
+	if (user.avatar?.id) {
+		const deletedAvatar = await deleteFromCloudinary(user?.avatar?.id);
+		if (deletedAvatar) {
+			throw new ApiError(500, deletedAvatar);
+		}
+	}
+
 	return res
 		.status(200)
-		.json(new ApiResponse(200, user, "User avatar deleted successfully"));
+		.json(
+			new ApiResponse(
+				200,
+				deletedUser,
+				"User avatar deleted successfully"
+			)
+		);
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
@@ -378,8 +418,8 @@ get current user ✔️
 login user ✔️
 update user -> name, role, address, phone ✔️
 change password ✔️
-update files: avatar, govId, certification ✔️ ❌
-delete avatar ✔️ ❌
+update files: avatar, govId, certification ✔️
+delete avatar ✔️
 logout user ✔️
 refresh access token ✔️
 

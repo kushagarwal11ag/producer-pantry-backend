@@ -268,6 +268,11 @@ const updateCrop = asyncHandler(async (req, res) => {
 				"An unexpected error occurred while uploading image"
 			);
 		}
+
+		const deletedCropImage = await deleteFromCloudinary(crop[0]?.image?.id);
+		if (deletedCropImage) {
+			throw new ApiError(500, deletedCropImage);
+		}
 	}
 
 	const updatedCrop = await Crop.findByIdAndUpdate(
@@ -339,6 +344,11 @@ const deleteCrop = asyncHandler(async (req, res) => {
 
 	await Crop.findByIdAndDelete(cropId);
 
+	const deletedCropImage = await deleteFromCloudinary(crop[0]?.image?.id);
+	if (deletedCropImage) {
+		throw new ApiError(500, deletedCropImage);
+	}
+
 	return res
 		.status(200)
 		.json(new ApiResponse(200, {}, "Crop deleted successfully"));
@@ -358,8 +368,8 @@ get all crops ✔️
 get all user crops ✔️
 get crop (id) ✔️
 create crop ✔️
-update crop (id) ✔️ ❌
-delete crop (id) ✔️ ❌
+update crop (id) ✔️
+delete crop (id) ✔️
 
 // later
 update interested retailers [id]
