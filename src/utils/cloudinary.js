@@ -21,16 +21,13 @@ const uploadOnCloudinary = async (localFilePath) => {
 	}
 };
 
-const deleteFromCloudinary = async (public_id, type = "image") => {
+const deleteFromCloudinary = async (public_id, type = "upload") => {
 	try {
-		if (!public_id)
-			return "Could not delete image on server: no image ID provided";
-		await cloudinary.uploader.destroy(public_id, {
-			type: `${type}`,
-		});
+		if (!public_id) return null;
+		await cloudinary.uploader.destroy(public_id, { type });
 		return null;
 	} catch (error) {
-		return `Error encountered while deleting image: ${error}`;
+		console.log("Error encountered while deleting image: ", error);
 	}
 };
 

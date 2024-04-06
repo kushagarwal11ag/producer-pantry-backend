@@ -21,3 +21,5 @@ router
 	.get(verifyJWT, getCropById)
 	.patch(verifyJWT, upload.single("image"), updateCrop)
 	.delete(verifyJWT, deleteCrop);
+
+export default router;

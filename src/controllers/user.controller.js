@@ -58,7 +58,7 @@ const registerUser = asyncHandler(async (req, res) => {
 	}
 
 	const existingUser = await User.find({ email });
-	if (existingUser) {
+	if (existingUser.length > 0) {
 		throw new ApiError(
 			409,
 			"A user with the provided email already exists"
@@ -95,7 +95,7 @@ const loginUser = asyncHandler(async (req, res) => {
 		);
 	}
 
-	const user = await User.find({ email });
+	const user = await User.findOne({ email });
 	if (!user) {
 		throw new ApiError(404, "User not found");
 	}
@@ -105,11 +105,11 @@ const loginUser = asyncHandler(async (req, res) => {
 		throw new ApiError(401, "Invalid Credentials");
 	}
 
-	const { accessToken, refreshToken } = generateAccessAndRefreshTokens(
+	const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
 		user._id
 	);
 
-	const loggedInUser = await User.findById(user.id).select(
+	const loggedInUser = await User.findById(user._id).select(
 		"-password -refreshToken"
 	);
 
@@ -118,7 +118,15 @@ const loginUser = asyncHandler(async (req, res) => {
 		.cookie("accessToken", accessToken, options)
 		.cookie("refreshToken", refreshToken, options)
 		.json(
-			new ApiResponse(200, loggedInUser, "User logged in successfully")
+			new ApiResponse(
+				200,
+				{
+					user: loggedInUser,
+					accessToken,
+					refreshToken,
+				},
+				"User logged in successfully"
+			)
 		);
 });
 
@@ -154,8 +162,8 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 		throw new ApiError(400, "New password cannot be same as the old one");
 	}
 
-	const user = await User.findById(user?._id);
-	const isPasswordValid = user.isPasswordCorrect(oldPassword);
+	const user = await User.findById(req.user?._id);
+	const isPasswordValid = await user.isPasswordCorrect(oldPassword);
 	if (!isPasswordValid) {
 		throw new ApiError(400, "The old password is incorrect");
 	}
@@ -169,7 +177,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
-	const { name, role, address, phone } = req.body;
+	const { name, address, phone } = req.body;
 
 	if (name) {
 		const { error } = validateUser({
@@ -180,12 +188,6 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 				400,
 				`Validation error: ${error.details[0].message}`
 			);
-		}
-	}
-
-	if (role) {
-		if (!(role === "farmer" || role === "retailer")) {
-			throw new ApiError(400, "Invalid role selected.");
 		}
 	}
 
@@ -205,7 +207,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 		}
 	}
 
-	if (!(name || role || address || phone)) {
+	if (!(name || address || phone)) {
 		throw new ApiError(400, "No field requested for update");
 	}
 
@@ -214,7 +216,6 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 		{
 			$set: {
 				name,
-				role,
 				address,
 				phone,
 			},
@@ -244,59 +245,51 @@ const updateAccountFiles = asyncHandler(async (req, res) => {
 
 	const user = await User.findById(req.user?._id);
 
-	const { id: avatarId, url: avatarUrl } = handleFileUpload(
-		avatarLocalPath,
-		"avatar"
-	);
-	const { id: govIdentity, url: govIdUrl } = handleFileUpload(
-		govIdLocalPath,
-		"govId"
-	);
-	const { id: certificationId, url: certificationUrl } = handleFileUpload(
-		certificationLocalPath,
-		"certification"
-	);
+	const uploadObject = {};
+
+	if (avatarLocalPath) {
+		const avatar = await handleFileUpload(avatarLocalPath, "avatar");
+		uploadObject.avatar = {
+			id: avatar.id,
+			url: avatar.url,
+		};
+	}
+	if (govIdLocalPath) {
+		const govId = await handleFileUpload(govIdLocalPath, "govId");
+		uploadObject.govId = {
+			id: govId.id,
+			url: govId.url,
+		};
+	}
+	if (certificationLocalPath) {
+		const certification = await handleFileUpload(
+			certificationLocalPath,
+			"certification"
+		);
+		uploadObject.certification = {
+			id: certification.id,
+			url: certification.url,
+		};
+	}
 
 	const updatedUser = await User.findByIdAndUpdate(
 		req.user?._id,
 		{
 			$set: {
-				avatar: {
-					id: avatarId,
-					url: avatarUrl,
-				},
-				govId: {
-					id: govIdentity,
-					url: govIdUrl,
-				},
-				certification: {
-					id: certificationId,
-					url: certificationUrl,
-				},
+				...uploadObject,
 			},
 		},
 		{ new: true }
 	).select("-password -refreshToken");
 
-	if (avatarId && user?.avatar?.id) {
-		const deletedAvatar = await deleteFromCloudinary(user?.avatar?.id);
-		if (deletedAvatar) {
-			throw new ApiError(500, deletedAvatar);
-		}
+	if (avatarLocalPath && user?.avatar?.id) {
+		await deleteFromCloudinary(user?.avatar?.id);
 	}
-	if (govIdentity && user?.govId?.id) {
-		const deletedGovId = await deleteFromCloudinary(user?.govId?.id);
-		if (deletedGovId) {
-			throw new ApiError(500, deletedGovId);
-		}
+	if (govIdLocalPath && user?.govId?.id) {
+		await deleteFromCloudinary(user?.govId?.id);
 	}
-	if (certificationId && user?.certification?.id) {
-		const deletedCertification = await deleteFromCloudinary(
-			user?.certification?.id
-		);
-		if (deletedCertification) {
-			throw new ApiError(500, deletedCertification);
-		}
+	if (certificationLocalPath && user?.certification?.id) {
+		await deleteFromCloudinary(user?.certification?.id);
 	}
 
 	return res
@@ -321,13 +314,10 @@ const deleteAvatar = asyncHandler(async (req, res) => {
 			},
 		},
 		{ new: true }
-	);
+	).select("-password -refreshToken");
 
 	if (user.avatar?.id) {
-		const deletedAvatar = await deleteFromCloudinary(user?.avatar?.id);
-		if (deletedAvatar) {
-			throw new ApiError(500, deletedAvatar);
-		}
+		await deleteFromCloudinary(user?.avatar?.id);
 	}
 
 	return res
