@@ -14,7 +14,7 @@ const router = Router();
 
 // secured routes
 router.route("/all-crops").get(verifyJWT, getAllCrops);
-router.route("/user-crops").get(verifyJWT, getAllUserCrops);
+router.route("/my-crops").get(verifyJWT, getAllUserCrops);
 router.route("/crop").post(verifyJWT, upload.single("image"), createCrop);
 router
 	.route("/crop/:cropId")

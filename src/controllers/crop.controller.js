@@ -25,22 +25,41 @@ const getAllCrops = asyncHandler(async (req, res) => {
 				as: "farmer",
 				pipeline: [
 					{
+						$addFields: {
+							avatar: "$avatar.url",
+						},
+					},
+					{
 						$project: {
+							_id: 0,
 							name: 1,
-							"avatar.url": 1,
+							avatar: 1,
 						},
 					},
 				],
 			},
 		},
 		{
+			$addFields: {
+				farmer: {
+					$first: "$farmer",
+				},
+				image: "$image.url",
+			},
+		},
+		{
+			$sort: {
+				createdAt: -1,
+			},
+		},
+		{
 			$project: {
 				name: 1,
-				description: 1,
 				// category: 1,
 				image: 1,
 				price: 1,
 				quantity: 1,
+				farmer: 1,
 			},
 		},
 	]);
@@ -51,6 +70,10 @@ const getAllCrops = asyncHandler(async (req, res) => {
 });
 
 const getAllUserCrops = asyncHandler(async (req, res) => {
+	if (req.user?.role !== "farmer") {
+		throw new ApiError(403, "Access forbidden.");
+	}
+
 	const userCrops = await Crop.aggregate([
 		{
 			$match: {
@@ -63,8 +86,12 @@ const getAllUserCrops = asyncHandler(async (req, res) => {
 			},
 		},
 		{
+			$addFields: {
+				image: "$image.url",
+			},
+		},
+		{
 			$project: {
-				_id: 1,
 				name: 1,
 				// category: 1,
 				image: 1,
@@ -87,11 +114,6 @@ const getCropById = asyncHandler(async (req, res) => {
 		throw new ApiError(400, "Invalid or missing crop ID");
 	}
 
-	const crop = await Crop.findById(cropId);
-	if (!crop) {
-		throw new ApiError(404, "Crop not found");
-	}
-
 	const getCrop = await Crop.aggregate([
 		{
 			$match: {
@@ -106,12 +128,26 @@ const getCropById = asyncHandler(async (req, res) => {
 				as: "farmer",
 				pipeline: [
 					{
+						$addFields: {
+							avatar: "$avatar.url",
+						},
+					},
+					{
 						$project: {
+							_id: 0,
 							name: 1,
-							"avatar.url": 1,
+							avatar: 1,
 						},
 					},
 				],
+			},
+		},
+		{
+			$addFields: {
+				farmer: {
+					$first: "$farmer",
+				},
+				image: "$image.url",
 			},
 		},
 		{
@@ -123,11 +159,18 @@ const getCropById = asyncHandler(async (req, res) => {
 				price: 1,
 				quantity: 1,
 				available: 1,
+				farmer: 1,
 			},
 		},
 	]);
 
-	return res.status(200, getCrop, "Crop retrieved successfully");
+	if (getCrop?.length === 0) {
+		throw new ApiError(404, "Crop not found");
+	}
+
+	return res
+		.status(200)
+		.json(new ApiResponse(200, getCrop, "Crop retrieved successfully"));
 });
 
 const createCrop = asyncHandler(async (req, res) => {
@@ -140,6 +183,11 @@ const createCrop = asyncHandler(async (req, res) => {
 		available = true,
 	} = req.body;
 	const imageLocalPath = req.file?.path;
+
+	if (req.user?.role !== "farmer") {
+		throw new ApiError(403, "Access forbidden.");
+	}
+
 	if (
 		!name.trim() ||
 		!description.trim() ||
@@ -151,14 +199,6 @@ const createCrop = asyncHandler(async (req, res) => {
 
 	if (!imageLocalPath) {
 		throw new ApiError(400, "Image file required");
-	}
-
-	const farmer = await User.findById(req.user?._id);
-	if (!farmer) {
-		throw new ApiError(404, "Farmer not found");
-	}
-	if (!(farmer?.role === "farmer")) {
-		throw new ApiError(403, "Access forbidden.");
 	}
 
 	const image = await uploadOnCloudinary(imageLocalPath);
@@ -180,7 +220,7 @@ const createCrop = asyncHandler(async (req, res) => {
 		price,
 		quantity,
 		available,
-		farmer,
+		farmer: req.user?._id,
 	});
 
 	return res
@@ -200,18 +240,22 @@ const updateCrop = asyncHandler(async (req, res) => {
 	const imageLocalPath = req.file?.path;
 	const { cropId } = req.params;
 
+	if (req.user?.role !== "farmer") {
+		throw new ApiError(403, "Access forbidden.");
+	}
+
 	let image;
 
-	if (!cropId || isValidObjectId(cropId)) {
+	if (!cropId || !isValidObjectId(cropId)) {
 		throw new ApiError(400, "Invalid or missing crop ID");
 	}
 
 	if (
 		!(
-			name.trim() ||
-			description.trim() ||
-			price.trim() ||
-			quantity.trim() ||
+			name?.trim() ||
+			description?.trim() ||
+			price?.trim() ||
+			quantity?.trim() ||
 			imageLocalPath ||
 			available
 		)
@@ -219,45 +263,13 @@ const updateCrop = asyncHandler(async (req, res) => {
 		throw new ApiError(400, "No field requested for update");
 	}
 
-	const crop = await Crop.aggregate([
-		{
-			$match: {
-				_id: new mongoose.Types.ObjectId(cropId),
-			},
-		},
-		{
-			$lookup: {
-				from: "users",
-				localField: "farmer",
-				foreignField: "_id",
-				as: "farmer",
-				pipeline: [
-					{
-						$project: {
-							_id: 1,
-							role: 1,
-						},
-					},
-					{
-						$addFields: {
-							farmer: {
-								$first: "$farmer",
-							},
-						},
-					},
-				],
-			},
-		},
-	]);
-	if (crop?.length === 0) {
+	const crop = await Crop.findById(cropId);
+	if (!crop) {
 		throw new ApiError(404, "Crop not found");
 	}
 
-	if (
-		crop[0].farmer?._id.toString() !== req.user?._id.toString() ||
-		crop[0].farmer?.role !== "farmer"
-	) {
-		throw new ApiError(403, "Forbidden Access.");
+	if (crop.farmer?.toString() !== req.user?._id.toString()) {
+		throw new ApiError(403, "Access forbidden.");
 	}
 
 	if (imageLocalPath) {
@@ -269,9 +281,8 @@ const updateCrop = asyncHandler(async (req, res) => {
 			);
 		}
 
-		const deletedCropImage = await deleteFromCloudinary(crop[0]?.image?.id);
-		if (deletedCropImage) {
-			throw new ApiError(500, deletedCropImage);
+		if (crop.image?.id) {
+			await deleteFromCloudinary(crop.image?.id);
 		}
 	}
 
@@ -285,7 +296,7 @@ const updateCrop = asyncHandler(async (req, res) => {
 				quantity,
 				available:
 					available === true || available === false
-						? !crop[0].available
+						? !crop.available
 						: undefined,
 				image: {
 					id: image?.public_id,
@@ -304,50 +315,28 @@ const updateCrop = asyncHandler(async (req, res) => {
 const deleteCrop = asyncHandler(async (req, res) => {
 	const { cropId } = req.params;
 
-	if (!cropId || isValidObjectId(cropId)) {
+	if (!cropId || !isValidObjectId(cropId)) {
 		throw new ApiError(400, "Invalid or missing crop ID");
 	}
 
-	const crop = await Crop.aggregate([
-		{
-			$match: {
-				_id: new mongoose.Types.ObjectId(cropId),
-			},
-		},
-		{
-			$lookup: {
-				from: "users",
-				localField: "farmer",
-				foreignField: "_id",
-				as: "farmer",
-				pipeline: [
-					{
-						$project: {
-							_id: 1,
-							role: 1,
-						},
-					},
-				],
-			},
-		},
-	]);
+	if (req.user?.role !== "farmer") {
+		throw new ApiError(403, "Access forbidden.");
+	}
+
+	const crop = await Crop.findById(cropId);
 	if (!crop) {
 		throw new ApiError(404, "Crop not found");
 	}
 
-	if (
-		crop.farmer?._id.toString() !== req.user?._id.toString() ||
-		crop.farmer?.role !== "farmer"
-	) {
-		throw new ApiError(403, "Forbidden Access.");
+	if (crop.farmer.toString() !== req.user?._id.toString()) {
+		throw new ApiError(403, "Access forbidden.");
+	}
+
+	if (crop.image?.id) {
+		await deleteFromCloudinary(crop.image?.id);
 	}
 
 	await Crop.findByIdAndDelete(cropId);
-
-	const deletedCropImage = await deleteFromCloudinary(crop[0]?.image?.id);
-	if (deletedCropImage) {
-		throw new ApiError(500, deletedCropImage);
-	}
 
 	return res
 		.status(200)
