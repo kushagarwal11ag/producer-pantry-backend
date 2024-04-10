@@ -30,14 +30,12 @@ app.use("/api/v1/crops", cropRouter);
 
 app.use((err, req, res, next) => {
 	if (err instanceof ApiError) {
-		// Custom ApiError handling
 		res.status(err.statusCode).json({
 			success: false,
 			message: err.message,
-			errors: err.errors, // Optional, if you're using the errors array
+			errors: err.errors,
 		});
 	} else {
-		// Generic error handling
 		res.status(500).json({
 			success: false,
 			message: "Internal Server Error",

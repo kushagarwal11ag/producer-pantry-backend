@@ -34,7 +34,6 @@ const getAllCrops = asyncHandler(async (req, res) => {
 							_id: 0,
 							name: 1,
 							avatar: 1,
-							createdAt: 1,
 						},
 					},
 				],
@@ -61,6 +60,7 @@ const getAllCrops = asyncHandler(async (req, res) => {
 				price: 1,
 				quantity: 1,
 				farmer: 1,
+				createdAt: 1,
 			},
 		},
 	]);
@@ -138,7 +138,6 @@ const getCropById = asyncHandler(async (req, res) => {
 							_id: 0,
 							name: 1,
 							avatar: 1,
-							createdAt: 1,
 						},
 					},
 				],
@@ -162,6 +161,7 @@ const getCropById = asyncHandler(async (req, res) => {
 				quantity: 1,
 				available: 1,
 				farmer: 1,
+				createdAt: 1,
 			},
 		},
 	]);
