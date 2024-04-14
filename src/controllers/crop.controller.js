@@ -301,8 +301,8 @@ const updateCrop = asyncHandler(async (req, res) => {
 						? !crop.available
 						: undefined,
 				image: {
-					id: image?.public_id,
-					url: image?.url,
+					id: image ? image.public_id : crop.image.id,
+					url: image ? image.url : crop.image.url,
 				},
 			},
 		},

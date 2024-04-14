@@ -243,7 +243,7 @@ const updateAccountFiles = asyncHandler(async (req, res) => {
 		throw new ApiError(400, "Upload files to proceed");
 	}
 
-	const user = await User.findById(req.user?._id);
+	const user = req.user;
 
 	const uploadObject = {};
 
