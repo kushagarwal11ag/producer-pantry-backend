@@ -59,6 +59,7 @@ const getAllCrops = asyncHandler(async (req, res) => {
 				image: 1,
 				price: 1,
 				quantity: 1,
+				available: 1,
 				farmer: 1,
 				createdAt: 1,
 			},
@@ -256,10 +257,10 @@ const updateCrop = asyncHandler(async (req, res) => {
 		!(
 			name?.trim() ||
 			description?.trim() ||
-			price?.trim() ||
-			quantity?.trim() ||
+			price ||
+			quantity ||
 			imageLocalPath ||
-			available
+			available !== undefined
 		)
 	) {
 		throw new ApiError(400, "No field requested for update");
@@ -296,10 +297,7 @@ const updateCrop = asyncHandler(async (req, res) => {
 				description,
 				price,
 				quantity,
-				available:
-					available === true || available === false
-						? !crop.available
-						: undefined,
+				available: available !== undefined ? available : crop.available,
 				image: {
 					id: image ? image.public_id : crop.image.id,
 					url: image ? image.url : crop.image.url,
