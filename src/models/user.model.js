@@ -28,26 +28,26 @@ const userSchema = new Schema(
 		},
 		avatar: {
 			id: {
-				type: String
+				type: String,
 			},
 			url: {
-				type: String
+				type: String,
 			},
 		},
 		govId: {
 			id: {
-				type: String
+				type: String,
 			},
 			url: {
-				type: String
+				type: String,
 			},
 		},
 		certification: {
 			id: {
-				type: String
+				type: String,
 			},
 			url: {
-				type: String
+				type: String,
 			},
 		},
 		address: {
@@ -56,16 +56,6 @@ const userSchema = new Schema(
 		phone: {
 			type: String,
 		},
-		refreshToken: {
-			type: String,
-		},
-		/*
-		wishlist: [
-			{
-				type: Schema.Types.ObjectId,
-				ref: "Crop",
-			},
-		],
 		cart: [
 			{
 				crop: {
@@ -74,7 +64,20 @@ const userSchema = new Schema(
 				},
 				quantity: {
 					type: Number,
+					default: 1,
+					min: 1,
+					max: 5,
 				},
+			},
+		],
+		refreshToken: {
+			type: String,
+		},
+		/*
+		wishlist: [
+			{
+				type: Schema.Types.ObjectId,
+				ref: "Crop",
 			},
 		],
 		*/

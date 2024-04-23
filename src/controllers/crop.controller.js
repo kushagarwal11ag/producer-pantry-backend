@@ -343,6 +343,143 @@ const deleteCrop = asyncHandler(async (req, res) => {
 		.json(new ApiResponse(200, {}, "Crop deleted successfully"));
 });
 
+const addCropToCart = asyncHandler(async (req, res) => {
+	const { cropId } = req.params;
+	const { quantity = 1 } = req.body;
+
+	if (!cropId || !isValidObjectId(cropId)) {
+		throw new ApiError(400, "Invalid or missing crop ID");
+	}
+
+	if (isNaN(quantity) || quantity <= 0 || quantity > 5) {
+		throw new ApiError(
+			400,
+			"Invalid quantity. Quantity must be between 1 and 5."
+		);
+	}
+
+	if (req.user?.role !== "retailer") {
+		throw new ApiError(403, "Access forbidden.");
+	}
+
+	const crop = await Crop.findById(cropId);
+	if (!crop) {
+		throw new ApiError(404, "Crop not found");
+	}
+
+	if (crop.quantity < quantity) {
+		throw new ApiError(400, "Quantity limit exceeded");
+	}
+
+	const updatedUser = await User.findOneAndUpdate(
+		{ _id: req.user?._id, "cart.crop": cropId },
+		{
+			$set: { "cart.$[elem].quantity": quantity },
+		},
+		{
+			new: true,
+			arrayFilters: [{ "elem.crop": cropId }],
+		}
+	);
+
+	if (!updatedUser) {
+		await User.findByIdAndUpdate(
+			req.user?._id,
+			{
+				$push: {
+					cart: {
+						crop: cropId,
+						quantity,
+					},
+				},
+			},
+			{ new: true }
+		);
+	}
+
+	return res
+		.status(200)
+		.json(new ApiResponse(200, {}, "Crop updated in cart successfully"));
+});
+
+const removeFromCart = asyncHandler(async (req, res) => {
+	const { cropId } = req.params;
+
+	if (!cropId || !isValidObjectId(cropId)) {
+		throw new ApiError(400, "Invalid or missing crop ID");
+	}
+
+	if (req.user?.role !== "retailer") {
+		throw new ApiError(403, "Access forbidden.");
+	}
+
+	const crop = await Crop.findById(cropId);
+	if (!crop) {
+		throw new ApiError(404, "Crop not found");
+	}
+
+	const cropExists = req.user?.cart.some(
+		(item) => item.crop.toString() === cropId
+	);
+	if (!cropExists) {
+		throw new ApiError(404, "Crop not found in cart");
+	}
+
+	await User.findByIdAndUpdate(req.user?._id, {
+		$pull: {
+			cart: {
+				crop: cropId,
+			},
+		},
+	});
+
+	return res
+		.status(200)
+		.json(new ApiResponse(200, {}, "Crop removed from cart successfully"));
+});
+
+const viewCart = asyncHandler(async (req, res) => {
+	if (req.user?.role !== "retailer") {
+		throw new ApiError(403, "Access Forbidden.");
+	}
+
+	const cart = await User.aggregate([
+		{
+			$match: {
+				_id: new mongoose.Types.ObjectId(req.user?._id),
+			},
+		},
+		{
+			$unwind: "$cart",
+		},
+		{
+			$lookup: {
+				from: "crops",
+				localField: "cart.crop",
+				foreignField: "_id",
+				as: "cropDetails",
+			},
+		},
+		{
+			$unwind: "$cropDetails",
+		},
+		{
+			$project: {
+				_id: 0,
+				cropId: "$cropDetails._id",
+				name: "$cropDetails.name",
+				image: "$cropDetails.image.url",
+				price: "$cropDetails.price",
+				quantity: "$cart.quantity",
+			},
+		},
+	]);
+
+	return res
+		.status(200)
+		.json(new ApiResponse(200, cart, "Cart retrieved successfully"));
+});
+
 export {
 	getAllCrops,
 	getAllUserCrops,
@@ -350,6 +487,9 @@ export {
 	createCrop,
 	updateCrop,
 	deleteCrop,
+	viewCart,
+	addCropToCart,
+	removeFromCart,
 };
 
 /*
@@ -359,6 +499,9 @@ get crop (id) ✔️
 create crop ✔️
 update crop (id) ✔️
 delete crop (id) ✔️
+view cart ✔️
+add to cart (id) ✔️
+delete from cart (id) ✔️
 
 // later
 update interested retailers [id]
