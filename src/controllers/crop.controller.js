@@ -139,6 +139,7 @@ const getCropById = asyncHandler(async (req, res) => {
 							_id: 0,
 							name: 1,
 							avatar: 1,
+							role: 1,
 						},
 					},
 				],
