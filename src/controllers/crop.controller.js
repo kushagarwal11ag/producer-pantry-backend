@@ -139,7 +139,6 @@ const getCropById = asyncHandler(async (req, res) => {
 							_id: 0,
 							name: 1,
 							avatar: 1,
-							role: 1,
 						},
 					},
 				],
@@ -172,9 +171,14 @@ const getCropById = asyncHandler(async (req, res) => {
 		throw new ApiError(404, "Crop not found");
 	}
 
+	const response = {
+		cropDetails: getCrop[0],
+		userRole: req.user?.role,
+	};
+
 	return res
 		.status(200)
-		.json(new ApiResponse(200, getCrop, "Crop retrieved successfully"));
+		.json(new ApiResponse(200, response, "Crop retrieved successfully"));
 });
 
 const createCrop = asyncHandler(async (req, res) => {
